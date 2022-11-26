@@ -145,71 +145,71 @@ mainScreenFunction macro
 	jmp label1
 	
 	top: ;infinite loop to take user input 
-	mov ah, 0
-	int 16h
-	cmp ah, 48h
-	je up
-	cmp ah, 50h
-	je down
+		mov ah, 0
+		int 16h
+		cmp ah, 48h
+		je up
+		cmp ah, 50h
+		je down
 	jmp top
 	jz top
 	
 	up: ;case validator in case of up key being pressed
-	cmp defaultSelect, 1
+		cmp defaultSelect, 1
 	je top
-	dec defaultSelect
-	cmp defaultSelect, 1
-	je label1
-	cmp defaultSelect, 2
-	je label2
-	cmp defaultSelect, 3
-	je label3
-	cmp defaultSelect, 4
-	je label4
+		dec defaultSelect
+		cmp defaultSelect, 1
+		je label1
+		cmp defaultSelect, 2
+		je label2
+		cmp defaultSelect, 3
+		je label3
+		cmp defaultSelect, 4
+		je label4
 	jmp top
 	
 	down: ;case validator in case of down key being pressed
-	cmp defaultSelect, 5
+		cmp defaultSelect, 5
 	je top
-	inc defaultSelect
-	cmp defaultSelect, 2
-	je label2
-	cmp defaultSelect, 3
-	je label3
-	cmp defaultSelect, 4
-	je label4
-	cmp defaultSelect, 5
-	je label5
+		inc defaultSelect
+		cmp defaultSelect, 2
+		je label2
+		cmp defaultSelect, 3
+		je label3
+		cmp defaultSelect, 4
+		je label4
+		cmp defaultSelect, 5
+		je label5
 	jmp top
 	
 	label1: ;change selected menu option color
-	mainScreenDraw
-	drawStringInitialize 16, 8
-	drawString mainMenuString2, 12
+		mainScreenDraw
+		drawStringInitialize 16, 8
+		drawString mainMenuString2, 12
 	jmp top
 	
 	label2: ;change selected menu option color
-	mainScreenDraw
-	drawStringInitialize 17, 11
-	drawString mainMenuString3, 12
+		mainScreenDraw
+		drawStringInitialize 17, 11
+		drawString mainMenuString3, 12
 	jmp top
 	
 	label3: ;change selected menu option color
-	mainScreenDraw
-	drawStringInitialize 14, 14
-	drawString mainMenuString4, 12
+		mainScreenDraw
+		drawStringInitialize 14, 14
+		drawString mainMenuString4, 12
 	jmp top
 	
 	label4: ;change selected menu option color
-	mainScreenDraw
-	drawStringInitialize 15, 17
-	drawString mainMenuString5, 12
+		mainScreenDraw
+		drawStringInitialize 15, 17
+		drawString mainMenuString5, 12
 	jmp top
 	
 	label5: ;change selected menu option color
-	mainScreenDraw
-	drawStringInitialize 18, 20
-	drawString mainMenuString6, 12
+		mainScreenDraw
+		drawStringInitialize 18, 20
+		drawString mainMenuString6, 12
 	jmp top
 		
 endm
