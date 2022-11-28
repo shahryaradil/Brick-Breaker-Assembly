@@ -1,9 +1,15 @@
+include Brick.inc
 .model small
 .stack 0100h
 .data
 
-lVal dw 120
-bVal dw 20
+brickLength dw 10
+brickWidth dw 30
+brickStartX dw 40
+brickStartY dw 50
+paddleLength dw 5
+paddleWidth dw 20
+paddleX dw 145
 temp dw ?
 count db 0
 mainMenuString1 db "BRICK BREAKER GAME"
@@ -13,6 +19,9 @@ mainMenuString4 db "Instructions"
 mainMenuString5 db "High Score"
 mainMenuString6 db "Exit"
 defaultSelect db 1
+
+bricks Brick 18 dup (<?,?,10,30,1,1,14>)
+brick1 Brick <?,?,10,30,1,1,14>
 
 .code
 
@@ -111,7 +120,6 @@ pageUpdate macro pNo ;change page number
 	mov al, 13h
 	int 10h
 
-	mov ah, 0ch
 	mov al, 14
 	mov bh, pNo
 
@@ -136,7 +144,7 @@ endm
 
 mainScreenFunction macro
 	
-	local top, up, down, label1, label2, label3, label4, label5
+	local top, up, down, label1, label2, label3, label4, label5, select, startGame
 	
 	mov al, 0Dh ; color
 	mov ah, 0ch ; mode
@@ -151,6 +159,8 @@ mainScreenFunction macro
 		je up
 		cmp ah, 50h
 		je down
+		cmp ah, 28
+		je select
 	jmp top
 	jz top
 	
@@ -211,7 +221,104 @@ mainScreenFunction macro
 		drawStringInitialize 18, 20
 		drawString mainMenuString6, 12
 	jmp top
+
+	select:
+		cmp defaultSelect, 1
+		je startGame
+		cmp defaultSelect, 5
+		je exit
+	jmp top
+
+	startGame:
+		pageUpdate 1 ; startGame func to be added ;
+		drawGame 3,6
+
+endm
+
+drawGame macro rows, cols, paddleCol
+
+	local startBrickDrawOuter, startBrickDrawInner, contLoop	; set labels as local to avoid redefinition error
+
+	push cx							; push all registers to be used
+	push si
+	push ax
+	push dx
+	push bx
+
+	mov ah,0
+	mov al,13h
+	int 10h
+
+	mov brickStartX, 40
+	mov brickStartY, 50
+
+	mov cx, rows	
+	mov si, offset bricks
+	mov bx, type bricks
+
+	startBrickDrawOuter:			; nested loop for creating rows and columns of bricks
 		
+		mov dx, cx
+		mov cx, cols
+		mov brickStartX, 40
+
+		startBrickDrawInner: 
+
+			mov al, 1
+			cmp [si + 6], al		; check if bricks.isActive is 1
+			jne contLoop			; only draw active bricks
+
+			drawrect brickLength,brickWidth,brickStartX,brickStartY,14
+			mov ax, brickStartX
+			mov [si], ax			; store x value of brick in brick struct array
+			mov ax, brickStartY
+			mov [si + 2], ax		; store y value of brick in brick struct array
+			add brickStartX, 40
+			add si, bx				; move on to next brick
+
+			contLoop:
+
+		loop startBrickDrawInner
+
+		mov cx, dx
+		add brickStartY, 20
+
+	loop startBrickDrawOuter
+
+	drawrect paddleLength,paddleWidth,paddleX,195,9
+
+	pop bx							; pop all registers that were used
+	pop dx
+	pop ax
+	pop si
+	pop cx
+
+endm
+
+movePaddle macro
+
+	top: ;infinite loop to take user input 
+		mov ah, 0
+		int 16h
+		cmp ah, 77
+		je up
+		cmp ah, 75
+		je down
+		cmp ah, 1
+		je exit
+	jmp top
+	jz top
+
+	up: ;case validator in case of up key being pressed
+		add paddleX, 5
+		drawGame 3, 6
+	jmp top
+
+	down:
+		sub paddleX, 5
+		drawGame 3, 6
+	jmp top
+
 endm
 
 main proc
@@ -221,33 +328,11 @@ main proc
 	mainScreenDraw ;initialize main menu and draw all objects
 	mainScreenFunction ;function to take user input for choice selection
 	
-	;pageUpdate 1
-
-	; drawrect 10,30,40,50,14
-	; drawrect 10,30,80,50,14
-	; drawrect 10,30,120,50,14
-	; drawrect 10,30,160,50,14
-	; drawrect 10,30,200,50,14
-	; drawrect 10,30,240,50,14
-
-	; drawrect 10,30,40,70,13
-	; drawrect 10,30,80,70,13
-	; drawrect 10,30,120,70,13
-	; drawrect 10,30,160,70,13
-	; drawrect 10,30,200,70,13
-	; drawrect 10,30,240,70,13
-
-	; drawrect 10,30,40,90,12
-	; drawrect 10,30,80,90,12
-	; drawrect 10,30,120,90,12
-	; drawrect 10,30,160,90,12
-	; drawrect 10,30,200,90,12
-	; drawrect 10,30,240,90,12
-
-	; drawrect 5,20,145,195,9
-	
+	movePaddle	
 
 main endp
+
+exit:
 
 mov ah, 4ch
 int 21h
