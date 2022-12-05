@@ -5,10 +5,8 @@ include Ball.inc
 .data
 
 currTime db ?
-isInBrickX db 0
 rowsOfBricks dw 3
 colsOfBricks dw 6
-numberOfBricks dw 18
 ballSpeedX dw 3
 ballSpeedY dw 3
 brickLength dw 10
@@ -18,8 +16,10 @@ brickStartY dw 50
 paddleLength dw 5
 paddleWidth dw 20
 paddleX dw 145
-temp dw ?
 count db 0
+instructionsTop db "Instructions"
+instructions1 db "Use left - right cursor keys to move paddle and break bricks"
+instructions2 db "Avoid letting the ball miss your pedal"
 mainMenuString1 db "BRICK BREAKER GAME"
 mainMenuString2 db "New Game"
 mainMenuString3 db "Resume"
@@ -29,9 +29,9 @@ mainMenuString6 db "Exit"
 defaultSelect db 1
 
 bricks Brick 18 dup (<?,?,10,30,1,1,14>)
-brick1 Brick <?,?,10,30,1,1,14>
+numberOfBricks dw 18
 
-balls Ball <150, 185, 1, -1, 1, 5, 5, 1>
+balls Ball <150, 185, 1, -1, 1, 2, 2, 1>
 
 .code
 
@@ -155,8 +155,7 @@ drawFrame macro
 		mov currTime, dl
 
 		drawrect balls.lengthOfBall,balls.widthOfBall,balls.x,balls.y,0
-		moveBallX
-		moveBallY
+		moveBall
 		drawrect balls.lengthOfBall,balls.widthOfBall,balls.x,balls.y,15
 
 		jmp timeLoop
@@ -268,6 +267,8 @@ mainScreenFunction macro
 		je startGame
 		cmp defaultSelect, 5
 		je exit
+		cmp defaultSelect, 3
+		instructionsScreen
 	jmp top
 
 	startGame:
@@ -333,169 +334,134 @@ drawGame macro rows, cols
 
 endm
 
-moveBallX macro
+moveBall macro
 
-	local increment, decrement, changeDirection, done, checkCollision1, checkCollision2, contLoop1, contLoop2, flagOn
+	local incrementX, decrementX, incrementY, decrementY, changeDirectionX, changeDirectionY, changeBothDirections, done, checkCollision, outOfBounds, cont, cont1, here
 
-	push ax
+	push ax							; push all registers to be used
 	push bx
 	push cx
 	push dx
-	push si
+	push di
 
-	mov si, offset bricks
-	mov bx, type bricks
-	mov cx, numberOfBricks
-	mov isInBrickX, 0
+	mov di, offset bricks			
+	mov dx, type bricks
+	mov cx, numberOfBricks	
 
-	cmp balls.xDir, 1
-	je increment
-	jmp decrement
+	checkCollision:					; loop to check collision with bricks
+
+		mov bl, [di + 6]			; check if brick is active
+		cmp bl, 1
+		jne cont1
+
+		mov ax, [di + 2]			; check brick down side
+		add ax, brickLength
+		cmp balls.y, ax
+		jg cont1
+
+		sub ax, brickLength			; check brick up side
+		cmp balls.y, ax
+		jl cont1
+
+		mov ax, [di]				; check brick left side
+		cmp balls.x, ax
+		jl cont1
+
+		add ax, brickWidth			; check brick right side
+		cmp balls.x, ax
+		jg cont1
+		drawrect brickLength,brickWidth,[di],[di + 2],0		; if ball gets in contact with brick, delete brick
+		jle changeBothDirections	; change direction after hitting brick
+
+		cont1:
+		add di, dx					; move on to the next brick
+
+	loop checkCollision
+
+	here:
+
+	cmp balls.xDir, 1				; check which direction (x) the ball is moving in order to increment or decrement that direction
+	je incrementX
+	jmp decrementX
 	
-	increment:
+	incrementX:						
 		cmp balls.x, 315
-		jge changeDirection
+		jge changeDirectionX
 
 		mov ax, ballSpeedX
 		add balls.x, ax
-		
-		checkCollision1:
 
-			mov al, [si + 6]
-			cmp al, 0
-			je contLoop1
+		cmp balls.yDir, 1
+		je incrementY
+		jmp decrementY
 
-			mov dx, [si]
-			cmp balls.x, dx
-			jl contLoop1
-
-			add dl, [si + 5]
-			cmp balls.x, dx
-			jl flagOn
-
-			contLoop1:
-			add si, bx
-
-		loop CheckCollision1
-
-		jmp done
-
-	decrement:
+	decrementX:						
 		cmp balls.x, 0
-		jle changeDirection
+		jle changeDirectionX
 		
 		mov ax, ballSpeedX
 		sub balls.x, ax
 
-		checkCollision2:
+		cmp balls.yDir, 1
+		je incrementY
+		jmp decrementY
 
-			mov al, [si + 6]
-			cmp al, 0
-			je contLoop2
-
-			mov dx, [si]
-			cmp balls.x, dx
-			jl contLoop2
-
-			add dl, [si + 5]
-			cmp balls.x, dx
-			jl flagOn
-
-			contLoop2:
-			add si, bx
-
-		loop CheckCollision2
-
-		jmp done
-
-	changeDirection:
-		neg balls.xDir
-		jmp done
-
-	flagOn:
-		mov isInBrickX, 1
-
-	done:
-
-	pop dx
-	pop cx
-	pop bx
-	pop ax
-
-endm
-
-moveBallY macro
-
-	local increment, decrement, changeDirection, done, checkCollision1, checkCollision2, contLoop1, contLoop2, flagOn
-
-	push ax	
-	push bx
-	push cx
-	push dx
-
-	mov si, offset bricks
-	mov bx, type bricks
-	mov cx, numberOfBricks
-
-	cmp balls.yDir, 1
-	je increment
-	jmp decrement
-	
-	increment:
+	incrementY:						; increments y, also checks if ball goes out of bounds or hits paddle
 		cmp balls.y, 195
-		jge changeDirection
+		jge outOfBounds
 
+		cmp balls.y, 185
+		jl cont
+
+		mov bx, paddleX
+		cmp balls.x, bx
+		jl cont
+
+		add bx, paddleWidth
+		mov cx, balls.x
+		add cx, 2
+		cmp cx, bx
+		jle changeDirectionY
+
+		cont:
 		mov ax, ballSpeedY
 		add balls.y, ax
 
-		cmp isInBrickX, 1
-		jne done
-
-		mov dx, [si + 2]
-		cmp balls.y, dx
-		jl done
-
-		add dx, [si + 4]
-		cmp balls.y, dx
-		jl flagOn
-
 		jmp done
 
-	decrement:
+	decrementY:
 		cmp balls.y, 0
-		jle changeDirection
+		jle changeDirectionY
 
 		mov ax, ballSpeedY
 		sub balls.y, ax
 
-		cmp isInBrickX, 1
-		jne done
-
-		mov dx, [si + 2]
-		cmp balls.y, dx
-		jl done
-
-		add dx, [si + 4]
-		cmp balls.y, dx
-		jl flagOn
-
 		jmp done
 
-	changeDirection:
+	changeDirectionX:
+		neg balls.xDir
+		
+		cmp balls.yDir, 1
+		je incrementY
+		jmp decrementY
+
+	changeDirectionY:
 		neg balls.yDir
 		jmp done
 
-	flagOn:
+	changeBothDirections:
 		mov al, 0
-		mov [si + 6], al
-		mov bx, [si]
-		mov cx, [si + 2]
-		;drawrect brickLength,brickWidth,bx,cx,4
-		jmp changeDirection
+		mov [di + 6], al
+		neg balls.xDir
+		neg balls.yDir
+		jmp here
+
+	outOfBounds:
+		jmp exit
 
 	done:
 
-	pop si
+	pop di							; pop all registers that were used
 	pop dx
 	pop cx
 	pop bx
@@ -524,6 +490,8 @@ movePaddle macro
 	cmp ah, 1
 	je exit
 
+	jmp done
+
 	right: ;case validator in case of up key being pressed
 
 		mov ax, paddleWidth									; if paddle is at the end of screen, don't move further
@@ -551,6 +519,24 @@ movePaddle macro
 
 	done:
 	pop ax
+
+endm
+
+instructionsScreen macro
+
+	local top
+	pageUpdate 0
+	drawStringInitialize 4, 4
+	drawString instructionsTop, 15
+	drawStringInitialize 2, 6
+	drawString instructions1, 15
+	drawStringInitialize 1, 10
+	drawString instructions2, 15
+	top: 
+		mov ah, 0
+		int 16h
+	je top
+	pageUpdate 0
 
 endm
 
