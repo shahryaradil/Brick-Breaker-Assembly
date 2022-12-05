@@ -4,6 +4,10 @@ include Ball.inc
 .stack 0100h
 .data
 
+f1 db "File1.txt", 0
+buffer db 999 dup('$')
+fileinfo dw 0
+
 currTime db ?
 rowsOfBricks dw 3
 colsOfBricks dw 6
@@ -18,16 +22,22 @@ paddleLength dw 5
 paddleWidth dw 20
 paddleX dw 145
 count db 0
+highScoresText db "High Scores"
 instructionsTop db "Instructions"
-instructions1 db "Use left - right cursor keys to move paddle and break bricks"
-instructions2 db "Avoid letting the ball miss your pedal"
+instructions1 db "Use left - right cursor keys to move  paddle and break bricks"
+instructions2 db "Avoid missing the pedal"
 mainMenuString1 db "BRICK BREAKER GAME"
 mainMenuString2 db "New Game"
 mainMenuString3 db "Resume"
 mainMenuString4 db "Instructions"
 mainMenuString5 db "High Score"
 mainMenuString6 db "Exit"
+levelScreenTop db "Choose a level"
+level1text db "Level 1"
+level2text db "Level 2"
+level3text db "Level 3"
 defaultSelect db 1
+username db 15 dup ('$')
 
 bricks Brick 18 dup (<?,?,10,30,1,1,14>)
 numberOfBricks dw 18
@@ -141,7 +151,7 @@ endm
 
 drawFrame macro
 
-	local timeLoop
+	local timeLoop, changeLevel, level3
 	
 	push cx
 	push dx
@@ -200,9 +210,22 @@ mainScreenDraw macro ;initialize main menu
 
 endm
 
+levelScreenDraw macro
+	
+	drawStringInitialize 13, 4
+	drawString levelScreenTop, 15
+	drawStringInitialize 16, 9
+	drawString level1text, 14
+	drawStringInitialize 16, 14
+	drawString level2text, 14
+	drawStringInitialize 16, 19
+	drawString level3text, 14
+
+endm
+
 mainScreenFunction macro
 	
-	local top, up, down, label1, label2, label3, label4, label5, select, startGame
+	local top, up, down, label1, label2, label3, label4, label5, select, startGame, selectHighScores, selectInstructions, selectStart
 	
 	mov al, 0Dh ; color
 	mov ah, 0ch ; mode
@@ -282,15 +305,120 @@ mainScreenFunction macro
 
 	select:
 		cmp defaultSelect, 1
-		je startGame
+		je selectStart
+		cmp defaultSelect, 2
+		je selectStart
+		cmp defaultSelect, 3
+		je selectInstructions
+		cmp defaultSelect, 4
+		je selectHighScores
 		cmp defaultSelect, 5
 		je exit
-		cmp defaultSelect, 3
-		instructionsScreen
+	jmp top
+	
+	selectStart:
+	levelScreenFunction
+	
+	selectInstructions:
+	instructionsScreen
+	jmp top
+	
+	selectHighScores:
+	highScoreMenu
 	jmp top
 
 	startGame:
 		pageUpdate 1						; update page
+		drawGame rowsOfBricks,colsOfBricks	; draw start of game
+		drawFrame							; start drawing frames
+
+endm
+
+levelScreenFunction macro
+
+	local top, up, down, label1, label2, label3, select, selectLevel1, selectLevel2, selectLevel3
+	
+	clearScreen
+	mov defaultSelect, 1
+	
+	mov al, 0Dh ; color
+	mov ah, 0ch ; mode
+	int 10h ; interrupt
+	
+	levelScreenDraw
+	jmp label1
+	
+	top: ;infinite loop to take user input 
+		mov ah, 0
+		int 16h
+		cmp ah, 48h
+		je up
+		cmp ah, 50h
+		je down
+		cmp ah, 28
+		je select
+	jmp top
+	jz top
+	
+	up: ;case validator in case of up key being pressed
+		cmp defaultSelect, 1
+	je top
+		dec defaultSelect
+		cmp defaultSelect, 1
+		je label1
+		cmp defaultSelect, 2
+		je label2
+	jmp top
+	
+	down: ;case validator in case of down key being pressed
+		cmp defaultSelect, 3
+	je top
+		inc defaultSelect
+		cmp defaultSelect, 2
+		je label2
+		cmp defaultSelect, 3
+		je label3
+	jmp top
+	
+	label1: ;change selected menu option color
+		levelScreenDraw
+		drawStringInitialize 16, 9
+		drawString level1text, 12
+	jmp top
+	
+	label2: ;change selected menu option color
+		levelScreenDraw
+		drawStringInitialize 16, 14
+		drawString level2text, 12
+	jmp top
+	
+	label3: ;change selected menu option color
+		levelScreenDraw
+		drawStringInitialize 16, 19
+		drawString level3text, 12
+	jmp top
+
+	select:
+		cmp defaultSelect, 1
+		je selectLevel1
+		cmp defaultSelect, 2
+		je selectLevel2
+		cmp defaultSelect, 3
+		je selectLevel3
+	jmp top
+	
+	selectLevel1:
+		clearScreen
+		drawGame rowsOfBricks,colsOfBricks	; draw start of game
+		drawFrame							; start drawing frames
+	
+	selectLevel2:
+		clearScreen							; update page
+		drawGame rowsOfBricks,colsOfBricks	; draw start of game
+		drawFrame							; start drawing frames
+		
+	selectLevel3:
+		clearScreen							; update page
 		drawGame rowsOfBricks,colsOfBricks	; draw start of game
 		drawFrame							; start drawing frames
 
@@ -642,22 +770,96 @@ movePaddle macro
 
 endm
 
+clearScreen macro
+
+	push ax
+
+	mov ah, 00h
+	mov al, 13h
+	int 10h
+	
+	pop ax
+	
+endm
+
 instructionsScreen macro
 
 	local top
-	pageUpdate 0
-	drawStringInitialize 4, 4
+	clearScreen
+	drawStringInitialize 13, 3
 	drawString instructionsTop, 15
-	drawStringInitialize 2, 6
-	drawString instructions1, 15
-	drawStringInitialize 1, 10
-	drawString instructions2, 15
+	drawStringInitialize 2, 9
+	drawString instructions1, 14
+	drawStringInitialize 2, 16
+	drawString instructions2, 14
 	top: 
 		mov ah, 0
 		int 16h
 	je top
-	pageUpdate 0
+	clearScreen
+	mainScreenDraw
+	drawStringInitialize 14, 14
+	drawString mainMenuString4, 12
+	
+endm
 
+highScoreMenu macro
+	
+	local top, displayLoop
+	
+	push ax
+	push bx
+	push cx
+	push dx
+	push si
+
+	clearScreen
+	
+	drawStringInitialize 14, 3
+	drawString highScoresText, 15
+	drawStringInitialize 11, 6
+
+	mov ah, 3dh				; 3dh opens file
+	mov al, 0				; 0 is file mode for reading
+	mov dx, offset f1			; moves pointer of filename to dx
+	int 21h					; interrupt
+
+	mov fileinfo, ax
+
+	mov ah, 3fh				; 3fh reads file
+	mov cx, 100				; number of bytes to read
+	mov dx, offset buffer			; moves pointer of file output to dx
+	mov bx, fileinfo			; bx needs file handle
+	int 21h					; interrupt
+
+	mov dx, offset buffer
+	mov ah, 09h
+	int 21h
+	
+	mov ah, 3eh 				; service to close file
+	mov bx, fileinfo 			; close file with pointer name
+	int 21h					; interrupt
+	
+	top:
+		mov ah, 0
+		int 16h
+		cmp ah, 0
+	je top
+	
+	pop ax
+	pop bx
+	pop cx
+	pop dx
+	pop si
+	
+	drawStringInitialize 14, 3
+	drawString highScoresText, 15
+	
+	clearScreen
+	mainScreenDraw
+	drawStringInitialize 15, 17
+	drawString mainMenuString5, 12
+	
 endm
 
 main proc
