@@ -8,6 +8,7 @@ f1 db "File1.txt", 0
 buffer db 999 dup('$')
 fileinfo dw 0
 
+score dw 0
 currTime db ?
 rowsOfBricks dw 3
 colsOfBricks dw 6
@@ -19,7 +20,7 @@ brickWidth dw 30
 brickStartX dw 40
 brickStartY dw 50
 paddleLength dw 5
-paddleWidth dw 20
+paddleWidth dw 30
 paddleX dw 145
 count db 0
 highScoresText db "High Scores"
@@ -32,6 +33,7 @@ mainMenuString3 db "Resume"
 mainMenuString4 db "Instructions"
 mainMenuString5 db "High Score"
 mainMenuString6 db "Exit"
+namePrompt db "Enter your name:"
 levelScreenTop db "Choose a level"
 level1text db "Level 1"
 level2text db "Level 2"
@@ -39,13 +41,14 @@ level3text db "Level 3"
 defaultSelect db 1
 username db 15 dup ('$')
 
-bricks Brick 18 dup (<?,?,10,30,1,1,14>)
+bricks Brick 18 dup (<?,?,10,30,1,1,14,0,10>)
 numberOfBricks dw 18
 numberOfCurrBricks dw 18
 
 balls Ball <150, 185, 1, -1, 1, 2, 2, 1>
 
 level db 1
+lives db 2
 
 .code
 
@@ -414,12 +417,15 @@ levelScreenFunction macro
 	
 	selectLevel2:
 		clearScreen							; update page
-		drawGame rowsOfBricks,colsOfBricks	; draw start of game
+		drawGame2 rowsOfBricks,colsOfBricks	; draw start of game
 		drawFrame							; start drawing frames
 		
 	selectLevel3:
 		clearScreen							; update page
-		drawGame rowsOfBricks,colsOfBricks	; draw start of game
+		add ballSpeedX, 1
+		add ballSpeedY, 1
+		sub paddleWidth, 2
+		drawGame3 rowsOfBricks,colsOfBricks	; draw start of game
 		drawFrame							; start drawing frames
 
 endm
@@ -490,6 +496,8 @@ drawGame2 macro rows, cols
 	push dx
 	push bx
 
+	drawrect balls.lengthOfBall,balls.widthOfBall,balls.x,balls.y,0
+
 	add ballSpeedX, 1
 	add ballSpeedY, 1
 
@@ -514,6 +522,8 @@ drawGame2 macro rows, cols
 		mov [si + 7], al				; set number of hits as 2
 		mov al, 12
 		mov [si + 8], al				; set color as red
+		mov al, 20
+		mov [si + 10], al				; set score as 20
 
 		add si, bx						; move on to next brick
 
@@ -565,9 +575,113 @@ drawGame2 macro rows, cols
 
 endm
 
+drawGame3 macro rows, cols
+
+	local startBrickDrawOuter, startBrickDrawInner, contLoop, setData	; set labels as local to avoid redefinition error
+
+	push cx							; push all registers to be used
+	push si
+	push ax
+	push dx
+	push bx
+
+	drawrect balls.lengthOfBall,balls.widthOfBall,balls.x,balls.y,0
+
+	add ballSpeedX, 1
+	add ballSpeedY, 1
+
+	mov cx, numberOfBricks
+	mov numberOfCurrBricks, cx
+	sub numberOfCurrBricks, 6
+	mov si, offset bricks
+	mov bx, type bricks
+	mov brickColor, 12
+
+	mov balls.x, 150
+	mov balls.y, 185
+	mov balls.xDir, 1
+	mov balls.yDir, -1
+
+	setData:
+
+		mov al, 1
+		mov [si + 6], al				; set brick as active
+		mov al, 3
+		mov [si + 7], al				; set number of hits as 3
+		mov al, 10
+		mov [si + 8], al				; set color as green
+		mov al, 30
+		mov [si + 10], al				; set score as 30
+
+		add si, bx						; move on to next brick
+
+	loop setData
+
+	mov si, offset bricks
+	mov cx, 6
+
+	setUnbreakable:
+
+		mov al, 1						
+		mov [si + 9], al				; set brick as unbreakable
+		mov al, 1
+		mov [si + 8], al				; set color as blue
+
+		add si, bx						; move on to next brick		
+
+	loop setUnbreakable
+
+	mov brickStartX, 40
+	mov brickStartY, 50
+
+	mov cx, rows	
+	mov si, offset bricks
+	mov bx, type bricks
+
+	startBrickDrawOuter:			; nested loop for creating rows and columns of bricks
+		
+		mov dx, cx
+		mov cx, cols
+		mov brickStartX, 40
+
+		startBrickDrawInner: 
+
+			mov al, 1
+			cmp [si + 6], al		; check if bricks.isActive is 1
+			jne contLoop			; only draw active bricks		; Code Check
+
+			mov ah, [si + 8]
+			mov brickColor, ah		; get brick color
+			drawrect brickLength,brickWidth,brickStartX,brickStartY,brickColor
+			mov ax, brickStartX
+			mov [si], ax			; store x value of brick in brick struct array
+			mov ax, brickStartY
+			mov [si + 2], ax		; store y value of brick in brick struct array
+			add brickStartX, 40
+			add si, bx				; move on to next brick
+
+			contLoop:
+
+		loop startBrickDrawInner
+
+		mov cx, dx
+		add brickStartY, 20
+
+	loop startBrickDrawOuter
+
+	drawrect paddleLength,paddleWidth,paddleX,195,9				; Draw Paddle on initial position
+
+	pop bx							; pop all registers that were used
+	pop dx
+	pop ax
+	pop si
+	pop cx
+
+endm
+
 moveBall macro
 
-	local incrementX, decrementX, incrementY, decrementY, changeDirectionX, changeDirectionY, changeBothDirections, done, checkCollision, outOfBounds, cont, cont1, here, here1
+	local incrementX, decrementX, incrementY, decrementY, changeDirectionX, changeDirectionY, changeBothDirections, done, checkCollision, outOfBounds, cont, cont1, here, here1, invertX, invertY
 
 	push ax							; push all registers to be used
 	push bx
@@ -602,6 +716,10 @@ moveBall macro
 		cmp balls.x, ax
 		jg cont1
 
+		mov bl, [di + 9]			; check if brick is unbreakable
+		cmp bl, 1
+		je here1
+
 		mov bl, [di + 7]
 		dec bl
 		mov [di + 7], bl
@@ -614,6 +732,8 @@ moveBall macro
 		
 		drawrect brickLength,brickWidth,[di],[di + 2],0		; if ball gets in contact with brick, delete brick
 		dec numberOfCurrBricks
+		mov bx, [di + 10]
+		add score, bx
 		mov bh, 0
 		mov [di + 6], bh
 
@@ -646,7 +766,7 @@ moveBall macro
 		jmp decrementY
 
 	decrementX:						
-		cmp balls.x, 0
+		cmp balls.x, 5
 		jle changeDirectionX
 		
 		mov ax, ballSpeedX
@@ -660,7 +780,7 @@ moveBall macro
 		cmp balls.y, 195
 		jge outOfBounds
 
-		cmp balls.y, 185
+		cmp balls.y, 190
 		jl cont
 
 		mov bx, paddleX
@@ -680,7 +800,7 @@ moveBall macro
 		jmp done
 
 	decrementY:
-		cmp balls.y, 0
+		cmp balls.y, 22
 		jle changeDirectionY
 
 		mov ax, ballSpeedY
@@ -700,12 +820,39 @@ moveBall macro
 		jmp done
 
 	changeBothDirections:
-		;neg balls.xDir
-		neg balls.yDir
-		jmp here
+		mov ax, balls.x
+		sub ax, ballSpeedX
+		cmp ax, [di]
+		jl invertX
+
+		mov ax, balls.x
+		add ax, ballSpeedX
+		mov bx, [di]
+		add bx, brickWidth
+		cmp ax, bx
+		jg invertX
+
+		jmp invertY
+
+		invertY:
+			neg balls.yDir
+			jmp here
+
+		invertX: 
+			neg balls.xDir
+			jmp here
 
 	outOfBounds:
-		jmp exit
+		cmp lives, 0
+		je exit 
+		dec lives
+		drawrect balls.lengthOfBall,balls.widthOfBall,balls.x,balls.y,0
+		mov balls.x, 150
+		mov balls.y, 185
+		mov balls.xDir, 1
+		mov balls.yDir, -1
+		drawrect balls.lengthOfBall,balls.widthOfBall,balls.x,balls.y,15
+		jmp done
 
 	done:
 
@@ -803,6 +950,40 @@ instructionsScreen macro
 	
 endm
 
+nameInput macro
+	local top, mEnd
+
+	push ax
+	push dx
+	push si
+	
+	mov si, offset username
+	
+	drawStringInitialize 11, 6
+	drawString namePrompt, 15
+	drawStringInitialize 11, 11
+	
+	top: ;infinite loop to take user input 
+		mov ah, 0
+		int 16h
+		
+		cmp ah, 28
+		je mEnd
+		
+		mov [si], al
+		inc si
+		
+		mov dl, al
+		mov ah, 2
+		int 21h
+	jmp top
+	mEnd:
+
+	pop ax
+	pop dx
+	pop si
+endm
+
 highScoreMenu macro
 	
 	local top, displayLoop
@@ -864,7 +1045,11 @@ endm
 
 main proc
 
-	pageUpdate 0		; page number for main menu
+	clearScreen
+
+	nameInput
+
+	clearScreen
 
 	mainScreenDraw		; initialize main menu and draw all objects
 	mainScreenFunction	; function to take user input for choice selection
