@@ -188,8 +188,13 @@ drawFrame macro
 		jmp timeLoop
 
 		level3:
+			cmp level, 3
+			je win
 			mov level, 3
-			jmp timeLoop
+			drawGame3 rowsOfBricks, colsOfBricks
+			jmp timeloop
+
+		win:
 
 	pop dx
 	pop cx
