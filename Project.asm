@@ -9,6 +9,7 @@ rowsOfBricks dw 3
 colsOfBricks dw 6
 ballSpeedX dw 3
 ballSpeedY dw 3
+brickColor db 14
 brickLength dw 10
 brickWidth dw 30
 brickStartX dw 40
@@ -30,8 +31,11 @@ defaultSelect db 1
 
 bricks Brick 18 dup (<?,?,10,30,1,1,14>)
 numberOfBricks dw 18
+numberOfCurrBricks dw 18
 
 balls Ball <150, 185, 1, -1, 1, 2, 2, 1>
+
+level db 1
 
 .code
 
@@ -158,7 +162,21 @@ drawFrame macro
 		moveBall
 		drawrect balls.lengthOfBall,balls.widthOfBall,balls.x,balls.y,15
 
+		cmp numberOfCurrBricks, 0
+		je changeLevel
+
 		jmp timeLoop
+
+	changeLevel:
+		cmp level, 1
+		jne level3
+		mov level, 2
+		drawGame2 rowsOfBricks, colsOfBricks
+		jmp timeLoop
+
+		level3:
+			mov level, 3
+			jmp timeLoop
 
 	pop dx
 	pop cx
@@ -334,9 +352,94 @@ drawGame macro rows, cols
 
 endm
 
+drawGame2 macro rows, cols
+
+	local startBrickDrawOuter, startBrickDrawInner, contLoop, setData	; set labels as local to avoid redefinition error
+
+	push cx							; push all registers to be used
+	push si
+	push ax
+	push dx
+	push bx
+
+	add ballSpeedX, 1
+	add ballSpeedY, 1
+
+	sub paddleWidth, 2
+
+	mov cx, numberOfBricks
+	mov numberOfCurrBricks, cx
+	mov si, offset bricks
+	mov bx, type bricks
+	mov brickColor, 12
+
+	mov balls.x, 150
+	mov balls.y, 185
+	mov balls.xDir, 1
+	mov balls.yDir, -1
+
+	setData:
+
+		mov al, 1
+		mov [si + 6], al				; set brick as active
+		mov al, 2
+		mov [si + 7], al				; set number of hits as 2
+		mov al, 12
+		mov [si + 8], al				; set color as red
+
+		add si, bx						; move on to next brick
+
+	loop setData
+
+	mov brickStartX, 40
+	mov brickStartY, 50
+
+	mov cx, rows	
+	mov si, offset bricks
+	mov bx, type bricks
+
+	startBrickDrawOuter:			; nested loop for creating rows and columns of bricks
+		
+		mov dx, cx
+		mov cx, cols
+		mov brickStartX, 40
+
+		startBrickDrawInner: 
+
+			mov al, 1
+			cmp [si + 6], al		; check if bricks.isActive is 1
+			jne contLoop			; only draw active bricks		; Code Check
+
+			drawrect brickLength,brickWidth,brickStartX,brickStartY,brickColor
+			mov ax, brickStartX
+			mov [si], ax			; store x value of brick in brick struct array
+			mov ax, brickStartY
+			mov [si + 2], ax		; store y value of brick in brick struct array
+			add brickStartX, 40
+			add si, bx				; move on to next brick
+
+			contLoop:
+
+		loop startBrickDrawInner
+
+		mov cx, dx
+		add brickStartY, 20
+
+	loop startBrickDrawOuter
+
+	drawrect paddleLength,paddleWidth,paddleX,195,9				; Draw Paddle on initial position
+
+	pop bx							; pop all registers that were used
+	pop dx
+	pop ax
+	pop si
+	pop cx
+
+endm
+
 moveBall macro
 
-	local incrementX, decrementX, incrementY, decrementY, changeDirectionX, changeDirectionY, changeBothDirections, done, checkCollision, outOfBounds, cont, cont1, here
+	local incrementX, decrementX, incrementY, decrementY, changeDirectionX, changeDirectionY, changeBothDirections, done, checkCollision, outOfBounds, cont, cont1, here, here1
 
 	push ax							; push all registers to be used
 	push bx
@@ -370,13 +473,32 @@ moveBall macro
 		add ax, brickWidth			; check brick right side
 		cmp balls.x, ax
 		jg cont1
+
+		mov bl, [di + 7]
+		dec bl
+		mov [di + 7], bl
+		mov bh, [di + 8]
+		dec bh
+		mov [di + 8], bh
+		drawrect brickLength, brickWidth,[di],[di + 2],[di + 8]
+		cmp bl, 0
+		jg here1
+		
 		drawrect brickLength,brickWidth,[di],[di + 2],0		; if ball gets in contact with brick, delete brick
+		dec numberOfCurrBricks
+		mov bh, 0
+		mov [di + 6], bh
+
+		here1:
+		cmp balls.x, ax
 		jle changeBothDirections	; change direction after hitting brick
 
 		cont1:
 		add di, dx					; move on to the next brick
 
-	loop checkCollision
+	dec cx
+	cmp cx, 0
+	jne CheckCollision
 
 	here:
 
@@ -450,9 +572,7 @@ moveBall macro
 		jmp done
 
 	changeBothDirections:
-		mov al, 0
-		mov [di + 6], al
-		neg balls.xDir
+		;neg balls.xDir
 		neg balls.yDir
 		jmp here
 
