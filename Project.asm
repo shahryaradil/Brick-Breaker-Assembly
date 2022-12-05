@@ -154,7 +154,7 @@ endm
 
 drawFrame macro
 
-	local timeLoop, changeLevel, level3
+	local timeLoop, changeLevel, level3, win
 	
 	push cx
 	push dx
@@ -582,7 +582,7 @@ endm
 
 drawGame3 macro rows, cols
 
-	local startBrickDrawOuter, startBrickDrawInner, contLoop, setData	; set labels as local to avoid redefinition error
+	local startBrickDrawOuter, startBrickDrawInner, contLoop, setData, setUnbreakable	; set labels as local to avoid redefinition error
 
 	push cx							; push all registers to be used
 	push si
