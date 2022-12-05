@@ -7,5 +7,7 @@ Brick struct
 	isActive db ?
 	hits db ?
 	color db ?
+	isUnbreakable db ?
+	score dw ?
 
 Brick ends
